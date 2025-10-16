@@ -1,0 +1,410 @@
+\documentclass[12pt]{article}
+\usepackage[a4paper, left=3cm, right=2cm, top=2cm, bottom=2cm]{geometry}
+\usepackage[spanish]{babel}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+% Esquema de colores azules
+\definecolor{codeblue}{rgb}{0,0.4,0.8}       % Azul principal para palabras clave
+\definecolor{codecyan}{rgb}{0,0.6,0.8}       % Azul cyan para comentarios
+\definecolor{codenavy}{rgb}{0,0.2,0.4}       % Azul marino para strings
+\definecolor{codegray}{rgb}{0.4,0.4,0.4}     % Gris azulado para números
+\definecolor{backcolour}{rgb}{0.96,0.97,0.98} % Fondo azul muy claro
+
+% Configuración de lstlisting con colores azules
+\lstdefinestyle{mystyle}{
+	backgroundcolor=\color{backcolour},   
+	commentstyle=\color{codecyan},
+	keywordstyle=\color{codeblue},
+	numberstyle=\tiny\color{codegray},
+	stringstyle=\color{codenavy},
+	basicstyle=\ttfamily\footnotesize,
+	breakatwhitespace=false,         
+	breaklines=true,                 
+	captionpos=b,                    
+	keepspaces=true,                 
+	numbers=left,                    
+	numbersep=5pt,                  
+	showspaces=false,                
+	showstringspaces=false,
+	showtabs=false,                  
+	tabsize=2
+}
+
+\lstset{style=mystyle}
+
+\title{Sistema de Gestión de Pacientes Médicos con Boost Multi-Index y LevelDB}
+\author{
+	Martin Natera - 3044534 \\
+	Sección: [Número de sección]
+}
+\date{Fecha de entrega: \today}
+
+\begin{document}
+	
+	\begin{titlepage}
+		\centering
+		\vspace*{2cm}
+		
+		{\Large \textbf{Universidad de Carabobo}}\\[0.5cm]
+		{\large Facultad Experimental de Ciencias y Tecnología}\\[0.3cm]
+		{\large Departamento de Computación}\\[1.5cm]
+		
+		\vspace{1cm}
+		
+		{\Large \textbf{Simulador De Datos Médicos}}\\[2cm]
+		
+		\vspace{1cm}
+		
+		\textbf{Autor:}\\[0.3cm]
+		Martin Natera 3044534\\[1cm]
+		
+		\textbf{Curso:}\\[0.3cm]
+		Arquitectura del computador\\[1cm]
+		
+		\textbf{Fecha:}\\[0.3cm]
+		16 de octubre de 2025
+		
+		\vfill
+	\end{titlepage}
+	
+	\newpage
+	
+	\section{Descripción del problema}
+	
+	El proyecto consiste en el desarrollo de un sistema en C++ para simular procesamiento de datos medicos en memoria con persistencia de datos por medio de una base de datos y utilizando Boost Multi-Index para búsquedas eficientes. Los objetivos principales incluyen:
+	
+	\begin{itemize}
+		\item Implementar un sistema de persistencia de datos usando una base de datos ligera
+		\item Utilizar Boost Multi-Index para búsquedas rápidas O(log n) en memoria
+		\item Sincronizar datos entre memoria RAM y almacenamiento persistente 
+		\item Gestionar información por medio de estructuras 
+		\item Permitir búsquedas eficientes por múltiples criterios simultáneos
+	\end{itemize}
+	
+	El software se desarrolla para entornos médicos simulados donde es crucial mantener registros de pacientes de manera organizada y eficiente, permitiendo acceso rápido a la información y garantizando la persistencia de los datos.
+	
+	\section{Análisis de la solución}
+	
+	\subsection*{Cómo se organizan y almacenan los datos}
+	Los datos se organizan en tres niveles principales:
+	
+	\begin{enumerate}
+		\item \textbf{Almacenamiento en memoria}: Los pacientes se almacenan en un contenedor Boost Multi-Index que mantiene múltiples índices automáticos para búsquedas rápidas.
+		\item \textbf{Almacenamiento persistente}: Los datos se guardan en LevelDB usando el ID del paciente como clave y los metadatos como valor en formato delimitado.
+		\item \textbf{Interfaz de usuario}: La clase \texttt{MenuPrincipal} gestiona la interacción con el usuario mediante un sistema de menús jerárquico.
+	\end{enumerate}
+	
+	\subsection*{Justificación de las decisiones tomadas}
+	\begin{itemize}
+		\item \textbf{STL/vector}: Permite el uso de estructura de almacenamiento en memoria de los datos obtenidos.
+		\item \textbf{Boost Multi-Index}: Permite múltiples índices automáticos sobre los mismos datos, proporcionando búsquedas O(log n) sin duplicación.
+		\item \textbf{LevelDB}: Base de datos clave-valor eficiente y ligera, ideal para aplicaciones embebidas.
+		\item \textbf{Índices múltiples}: Cinco índices diferentes (ID, nombre, modalidad, sexo, secuencial) para cubrir todos los casos de uso.
+	\end{itemize}
+	
+	\section{Estructuras de datos}
+	
+	\subsection*{Estructura PacienteData para Boost Multi-Index}
+	\begin{lstlisting}[language=C++]
+		struct PacienteData {
+			string patientID;           // Identificador unico (indice unico)
+			string patientName;         // Nombre (indice ordenado)
+			string studyDate;           // Fecha del estudio
+			string modality;           // Modalidad (indice agrupado)
+			string sex;                // Sexo (indice agrupado)
+			long long tamanoArchivo;   // Tamano del archivo
+			
+			// Conversiones desde/hacia DataPaciente
+			PacienteData(const DataPaciente& dp);
+			DataPaciente toDataPaciente() const;
+		};
+	\end{lstlisting}
+	
+	\subsection*{Contenedor Multi-Index con 5 índices}
+	\begin{lstlisting}[language=C++]
+		typedef multi_index_container<
+		PacienteData,
+		indexed_by<
+		ordered_unique<member<PacienteData, string, &PacienteData::patientID>>,      // Indice 0: ID unico
+		ordered_non_unique<member<PacienteData, string, &PacienteData::patientName>>, // Indice 1: Nombre
+		ordered_non_unique<member<PacienteData, string, &PacienteData::modality>>,    // Indice 2: Modalidad
+		ordered_non_unique<member<PacienteData, string, &PacienteData::sex>>,         // Indice 3: Sexo
+		sequenced<>                                                                   // Indice 4: Secuencial
+		]
+		> PacienteContainer;
+	\end{lstlisting}
+	
+	\subsection*{Clase SistemaPacientes con Boost Multi-Index}
+	\begin{lstlisting}[language=C++]
+		class SistemaPacientes {
+			private:
+			PacienteContainer pacientesContainer;  // Contenedor multi-index
+			LevelDBManager leveldb;                // Gestor de base de datos
+			public:
+			// Busquedas O(log n) usando diferentes indices
+			vector<DataPaciente> buscarPorNombre(const string& nombre) const;
+			vector<DataPaciente> buscarPorID(const string& id) const;
+			vector<DataPaciente> buscarPorModalidad(const string& modalidad) const;
+			vector<DataPaciente> buscarPorSexo(const string& sexo) const;
+			DataPaciente* buscarExactoPorID(const string& id); // O(log n)
+		};
+	\end{lstlisting}
+	
+	\subsection*{Estructuras y algoritmos aplicados}
+	
+	\begin{enumerate}
+		\item \textbf{Boost Multi-Index Container}: Contenedor principal con 5 índices automáticos
+		\item \textbf{ordered\_unique}: Índice único por ID (clave primaria)
+		\item \textbf{ordered\_non\_unique}: Índices no únicos para nombre, modalidad y sexo
+		\item \textbf{sequenced}: Índice que mantiene el orden de inserción
+		\item \textbf{LevelDB}: Base de datos clave-valor para persistencia
+	\end{enumerate}
+	
+	\subsection*{Algoritmos de Búsqueda}
+	
+	\begin{algorithm}[H]
+		\caption{Búsqueda por ID (Clave Primaria)}
+		\begin{algorithmic}[1]
+			\Function{buscarExactoPorID}{$id$}
+			\State $index \gets get(0)$ \Comment{Índice por ID}
+			\State $it \gets find(index, id)$
+			\If{$it \neq end(index)$}
+			\State \Return $it.toDataPaciente()$
+			\EndIf
+			\State \Return $nullptr$
+			\EndFunction
+		\end{algorithmic}
+	\end{algorithm}
+	
+	\begin{algorithm}[H]
+		\caption{Búsqueda por Nombre (Búsqueda Parcial)}
+		\begin{algorithmic}[1]
+			\Function{buscarPorNombre}{$nombre$}
+			\State $resultados \gets \{\}$
+			\State $nombreBusqueda \gets aMinusculas(nombre)$
+			\State $index \gets get(1)$ \Comment{Índice por nombre}
+			\For{$it \gets begin(index)$ to $end(index)$}
+			\State $nombrePaciente \gets aMinusculas(it.patientName)$
+			\If{$find(nombrePaciente, nombreBusqueda) \neq string::npos$}
+			\State $push\_back(resultados, it.toDataPaciente())$
+			\EndIf
+			\EndFor
+			\State \Return $resultados$
+			\EndFunction
+		\end{algorithmic}
+	\end{algorithm}
+	
+	\subsection*{Algoritmos de Inserción y Eliminación}
+	
+	\begin{algorithm}[H]
+		\caption{Inserción de Paciente}
+		\begin{algorithmic}[1]
+			\Function{agregarPaciente}{$paciente$}
+			\If{$existePaciente(paciente.getPatientID())$}
+			\State \Return \Comment{Paciente ya existe}
+			\EndIf
+			\State $insert(pacientesContainer, PacienteData(paciente))$
+			\If{$leveldb.isConnected()$}
+			\State $guardarPaciente(leveldb, paciente)$
+			\EndIf
+			\EndFunction
+		\end{algorithmic}
+	\end{algorithm}
+	
+	\section{Algoritmos de LevelDB}
+	
+	\subsection*{Operaciones de Persistencia}
+	
+	\begin{algorithm}[H]
+		\caption{Guardar Paciente en LevelDB}
+		\begin{algorithmic}[1]
+			\Function{guardarPaciente}{$id, nombre, fecha, modalidad, sexo, tamano$}
+			\State $pacienteData \gets nombre + "|" + fecha + "|" + modalidad + "|" + sexo + "|" + to\_string(tamano)$
+			\State $status \gets Put(db, WriteOptions(), id, pacienteData)$
+			\If{$not status.ok()$}
+			\State \Return false
+			\EndIf
+			\State \Return true
+			\EndFunction
+		\end{algorithmic}
+	\end{algorithm}
+	
+	\begin{algorithm}[H]
+		\caption{Búsqueda por Campo en LevelDB}
+		\begin{algorithmic}[1]
+			\Function{buscarPacientesPorCampo}{$campoIndex, valor$}
+			\State $resultados \gets \{\}$
+			\State $valorBusqueda \gets aMinusculas(valor)$
+			\State $it \gets NewIterator(db, ReadOptions())$
+			\For{$it.SeekToFirst()$; $it.Valid()$; $it.Next()$}
+			\State $campos \gets parseCampos(it.value())$
+			\If{$|campos| > campoIndex$}
+			\State $campoValor \gets campos[campoIndex]$
+			\If{$aMinusculas(campoValor).find(valorBusqueda) \neq string::npos$}
+			\State $push\_back(resultados, formatearResultado(it, campos))$
+			\EndIf
+			\EndIf
+			\EndFor
+			\State \Return $resultados$
+			\EndFunction
+		\end{algorithmic}
+	\end{algorithm}
+	
+	\section{Gestión en Memoria con STL/Vector}
+	
+	\subsection*{Uso de STL Vector}
+	
+	El código utiliza \texttt{std::vector} principalmente para:
+		
+	\begin{itemize}
+		\item \textbf{Almacenamiento temporal}: Durante el procesamiento de archivos y parsing de datos
+		\item \textbf{Resultados de búsqueda}: Retorno de múltiples pacientes que coinciden con criterios
+		\item \textbf{Manejo de campos}: División de strings en operaciones de parsing
+		\item \textbf{Recolección de datos}: Acumulación temporal de información antes de procesar
+	\end{itemize}
+	
+	\begin{lstlisting}[language=C++,caption=Uso de vector en el parsing de datos]
+		#include <vector>
+		
+		// Almacenamiento temporal durante procesamiento
+		vector<string> campos;
+		string campo;
+		size_t inicio = 0;
+		size_t fin = linea.find('|');
+		
+		while (fin != string::npos) {
+			campo = linea.substr(inicio, fin - inicio);
+			campos.push_back(campo);  // Uso de vector para almacenamiento temporal
+			inicio = fin + 1;
+			fin = linea.find('|', inicio);
+		}
+	\end{lstlisting}
+	
+	\section{Boost Multi-Index: Arquitectura Avanzada}
+	
+	El sistema requiere múltiples formas de acceso a los datos de pacientes simultáneamente:
+	
+	\begin{table}[h]
+		\centering
+		\begin{tabular}{|l|l|l|}
+			\hline
+			\textbf{Tipo de Acceso} & \textbf{Requisito} & \textbf{Implementación} \\
+			\hline
+			Acceso rápido por ID & Clave primaria & Índice único ordenado \\
+			Búsqueda por nombre & Búsqueda parcial & Índice no único ordenado \\
+			Filtrado por modalidad & Agrupamiento & Índice no único ordenado \\
+			Filtrado por sexo & Agrupamiento & Índice no único ordenado \\
+			Orden de inserción & Secuencial & Índice secuencial \\
+			\hline
+		\end{tabular}
+	\end{table}
+
+	\subsection*{Comparativa de complejidades}
+
+	\begin{table}[h]
+		\centering
+		\begin{tabular}{|l|c|c|}
+			\hline
+			\textbf{Operación} & \textbf{Vector (antes)} & \textbf{Multi-Index (ahora)} \\
+			\hline
+			Búsqueda por ID & O(n) & O(log n) \\
+			Búsqueda por nombre & O(n) & O(log n) \\
+			Búsqueda por modalidad & O(n) & O(log n + k) \\
+			Inserción & O(1) & O(log n) \\
+			Eliminación & O(n) & O(log n) \\
+			\hline
+		\end{tabular}
+		\caption{Comparativa de complejidades algorítmicas}
+	\end{table}
+	
+	\subsection*{Ventajas de la Implementación Multi-Index}
+	
+	\begin{enumerate}
+		\item \textbf{Eficiencia en Búsquedas}: Cada índice mantiene su propia estructura ordenada con complejidad $O(\log n)$
+		\item \textbf{Acceso Multi-dimensional}: Múltiples formas de acceder a los mismos datos sin duplicación
+		\item \textbf{Actualización Automática}: Los índices se mantienen consistentes automáticamente
+		\item \textbf{Memoria Optimizada}: Los datos se almacenan una vez, los índices son referencias
+		\item \textbf{Tipado Seguro}: Acceso type-safe a través de diferentes índices
+	\end{enumerate}
+	
+	
+	\section{Persistencia con LevelDB}
+	
+	\subsection*{Selección de LevelDB:}
+	
+	
+	\textbf{LevelDB fue seleccionado por las siguientes razones:}
+	
+	\begin{itemize}
+		\item \textbf{Base de Datos Embedida}: No requiere servidor externo
+		\item \textbf{Alto Rendimiento}: Optimizada para operaciones de lectura/escritura
+		\item \textbf{Persistencia Clave-Valor}: Modelo simple que se adapta a los requisitos
+		\item \textbf{Escalabilidad}: Maneja eficientemente grandes volúmenes de datos
+		\item \textbf{Consistencia}: Garantiza la integridad de los datos
+		\item \textbf{Manejo de Fallos}: Recuperación automática después de caídas
+	\end{itemize}
+	
+	\subsection*{Esquema de Almacenamiento}
+	
+	\subsubsection*{Estructura Clave-Valor:}
+	
+	\begin{itemize}
+		\item \textbf{Clave}: \texttt{patientID} (string)
+		\item \textbf{Valor}: \texttt{nombre|fecha|modalidad|sexo|tamano} (string delimitado)
+	\end{itemize}
+	
+	\subsection*{Limitaciones:}
+	
+	\begin{itemize}
+		\item \textbf{Búsquedas Secundarias}: Requieren escaneo completo de la base de datos
+		\item \textbf{Parseo Manual}: Necesidad de parsear strings para acceder a campos individuales
+		\item \textbf{No hay Índices Secundarios}: LevelDB solo tiene índice por clave primaria
+		\item \textbf{Consistencia Eventual}: Entre memoria y persistencia
+	\end{itemize}
+
+	\section{Pruebas realizadas}
+	
+	\subsection*{Descripción de los casos de prueba}
+	
+	\begin{enumerate}
+		\item \textbf{Carga de archivo de ejemplo con 200 pacientes}:
+		\begin{itemize}
+			\item Se creó automáticamente un archivo con 200 pacientes de prueba
+			\item Verificación: Todos los pacientes se cargaron correctamente en el Multi-Index
+			\item Persistencia: Los datos se guardaron en LevelDB
+			\item Índices: Los 5 índices se actualizaron automáticamente
+		\end{itemize}
+		
+		\item \textbf{Búsquedas eficientes con diferentes índices}:
+		\begin{itemize}
+			\item Búsqueda por nombre: Usando índice ordenado (O(log n))
+			\item Búsqueda por ID: Usando índice único (O(log n)) 
+			\item Búsqueda por modalidad: Usando equal\_range (O(log n + k))
+			\item Búsqueda por sexo: Agrupación automática por índices
+			\item Verificación: Resultados consistentes entre todos los índices
+		\end{itemize}
+	\end{enumerate}
+	
+	\section{Análisis}
+	
+	\paragraph*{}
+	Este código representa un simulador avanzado de gestión de datos médicos que emula el comportamiento de sistemas hospitalarios reales mediante una arquitectura híbrida en memoria y persistente. Como simulador, no solo almacena información de pacientes sino que genera datos médicos sintéticos realistas, incluyendo tamaños de archivo basados en modalidades de estudio específicas (CT, MRI, XRAY), fechas de estudio formateadas y perfiles de pacientes diversos. La capacidad de cargar desde archivos de texto con formato compacto permite simular escenarios de migración de datos o integración con sistemas legacy, mientras que la generación automática de tamaños de archivo por modalidad reproduce fielmente las características de almacenamiento típicas en entornos médicos reales.
+	
+	\paragraph*{}
+	La simulación de múltiples patrones de acceso concurrente se logra mediante la implementación de Boost Multi-Index, que permite emular cómo diferentes roles médicos (radiólogos, administradores, especialistas) accederían a los mismos datos desde perspectivas distintas. El sistema simula búsquedas por ID para acceso rápido en emergencias, por nombre para consultas administrativas, por modalidad para análisis especializados y por sexo para estudios epidemiológicos, manteniendo en todo momento la coherencia de datos que sería crítica en un entorno médico real. Esta multi-dimensionalidad en el acceso simula eficientemente las demandas concurrentes de un hospital operativo.
+	
+	\paragraph*{}
+	La persistencia con LevelDB añade otra capa de simulación realista, emulando cómo los sistemas médicos garantizan la durabilidad de datos críticos ante fallos del sistema. El esquema clave-valor simula bases de datos NoSQL utilizadas en healthcare moderno, mientras que las operaciones de sincronización entre memoria y disco reproducen los mecanismos de consistencia que prevendrían la pérdida de información médica vital. La capacidad de realizar búsquedas directas en LevelDB versus búsquedas en memoria simula los trade-offs entre velocidad y persistencia que los administradores de sistemas médicos enfrentan diariamente.
+	
+	\paragraph*{}
+	Como simulador de pruebas, este código permite evaluar estrategias de optimización antes de su implementación en entornos productivos, demostrando cómo la combinación de contenedores especializados en memoria con bases de datos embedidas puede resolver problemas complejos de gestión de datos médicos. La arquitectura sirve como banco de pruebas para comprender cómo escalarían las operaciones con miles de pacientes y cómo diferentes estrategias de indexación impactarían el rendimiento en situaciones simuladas de alta demanda, todo ello sin riesgo para pacientes reales.
+	
+\end{document}
